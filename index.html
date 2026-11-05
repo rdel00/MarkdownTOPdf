@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CV to PDF</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: toolbar on top, markdown editor beside a true-to-scale page preview, ATS checks between. */
+:root {
+  --bg: #f1f3f0;
+  --surface: #ffffff;
+  --fg: #19211e;
+  --muted: #5a6762;
+  --line: #d3dad5;
+  --accent: #1d5c52;
+  --on-accent: #ffffff;
+  --ok: #2c7a4b;
+  --warn: #a35a00;
+  --paper: #ffffff;
+  --ink: #111111;
+  --font-ui: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101513;
+    --surface: #182019;
+    --fg: #e5ebe7;
+    --muted: #94a39b;
+    --line: #2a3630;
+    --accent: #72c4ae;
+    --on-accent: #0c1411;
+    --ok: #6fcf94;
+    --warn: #e8a850;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101513;
+  --surface: #182019;
+  --fg: #e5ebe7;
+  --muted: #94a39b;
+  --line: #2a3630;
+  --accent: #72c4ae;
+  --on-accent: #0c1411;
+  --ok: #6fcf94;
+  --warn: #e8a850;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
+header h1 { font-size: 1.5rem; line-height: 1.2; margin: 0 0 4px; text-wrap: balance; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--muted); max-width: 62ch; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: end; }
+.field { display: grid; gap: 4px; min-width: 0; flex: 1 1 220px; max-width: 340px; }
+.field label { font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+input[type="text"] {
+  font: inherit; color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0; width: 100%;
+}
+button {
+  font: inherit; font-weight: 500; cursor: pointer; border-radius: 6px; padding: 8px 14px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
+button.primary:hover { filter: brightness(1.08); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status { color: var(--muted); font-size: 0.875rem; min-height: 1.3em; flex: 1 1 100%; }
+.checks { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.checks li {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 0.8125rem;
+  padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); min-width: 0;
+}
+.checks li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+.checks li.warn::before { background: var(--warn); }
+.panes { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .panes { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } }
+.pane { min-width: 0; display: grid; gap: 6px; }
+.pane h2 { font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin: 0; font-weight: 500; }
+textarea {
+  width: 100%; height: 72vh; min-height: 380px; resize: vertical;
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; tab-size: 2;
+  color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px;
+}
+.pages { display: grid; gap: 14px; min-width: 0; }
+.page {
+  position: relative; width: 100%; aspect-ratio: 210 / 297; background: var(--paper);
+  container-type: inline-size; border: 1px solid var(--line); box-shadow: 0 1px 6px rgba(0,0,0,0.12); overflow: hidden;
+}
+.page .t {
+  position: absolute; white-space: pre; line-height: 1; color: var(--ink);
+  font-family: Helvetica, Arial, "Liberation Sans", sans-serif;
+}
+.page .t.b { font-weight: 700; }
+.page .dot { position: absolute; background: var(--ink); border-radius: 50%; }
+.page .rule { position: absolute; background: var(--ink); min-height: 1px; }
+.page .num { position: absolute; right: 8px; bottom: 4px; font-size: 10px; color: #888; }
+.hint { color: var(--muted); font-size: 0.8125rem; margin: 0; max-width: 70ch; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs button {
+  border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
+  padding: 6px 12px; color: var(--muted); font-size: 0.875rem;
+}
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 700; }
+.tabs button:hover { border-color: transparent; border-bottom-color: var(--line); }
+.tabs button[aria-selected="true"]:hover { border-bottom-color: var(--accent); }
+.md {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px;
+  min-width: 0; overflow-wrap: anywhere; max-height: 72vh; overflow: auto;
+}
+.md h1 { font-size: 1.6rem; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.01em; }
+.md h2 {
+  font-size: 0.8125rem; letter-spacing: 0.08em; text-transform: uppercase; margin: 18px 0 8px;
+  padding-bottom: 4px; border-bottom: 1px solid var(--line); color: var(--accent);
+}
+.md p { margin: 6px 0; max-width: 72ch; }
+.md p.entry { font-weight: 700; margin-top: 12px; }
+.md ul { margin: 4px 0; padding-left: 1.2em; max-width: 72ch; }
+.md li { margin: 2px 0; }
+.md[hidden], .pages[hidden] { display: none; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>CV to PDF</h1>
+    <p>Paste a markdown CV and save a single-column PDF with plain text that applicant tracking systems read in the right order.</p>
+  </header>
+
+  <div class="bar">
+    <div class="field">
+      <label for="fname">File name</label>
+      <input type="text" id="fname" value="CV.pdf" autocomplete="off" spellcheck="false">
+    </div>
+    <button type="button" class="primary" id="dl">Download PDF</button>
+    <button type="button" id="dlmd">Download Markdown</button>
+    <button type="button" id="open">Open .md file</button>
+    <button type="button" id="reset">Reset to sample</button>
+    <input type="file" id="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+  </div>
+
+  <ul class="checks" id="checks" aria-label="Checks"></ul>
+
+  <div class="panes">
+    <section class="pane">
+      <h2>Markdown</h2>
+      <textarea id="src" spellcheck="false" aria-label="Markdown CV">
+# Alex Martin
+
+**Mechanical Engineering Student | Seeking a 6-month internship starting March 2027**
+
+Lyon, France | +1 555 010 0199 | alex.martin@example.com
+
+## SUMMARY
+
+Final-year engineering student with hands-on experience in CAD modelling, finite element analysis and data analysis in Python. Comfortable working in small teams and presenting technical results to non-specialists. Looking to contribute to product development projects.
+
+## SKILLS
+
+- **Design and simulation:** SolidWorks, ANSYS, MATLAB
+- **Programming:** Python (NumPy, Pandas), C, Git
+- **Languages:** English (fluent), French (native)
+
+## EDUCATION
+
+**MSc Mechanical Engineering** | Example University | 2025 - 2027
+- Relevant courses: finite element methods, control systems, thermodynamics, materials.
+
+**BSc Mechanical Engineering** | Example University | 2022 - 2025
+- Graduated with honours.
+
+## PROJECTS
+
+**Lightweight bracket optimisation** | SolidWorks, ANSYS
+- Reduced the mass of a load-bearing bracket by 18 % while keeping the safety factor above 2.
+- Compared three topology optimisation settings and documented the results in a short report.
+
+**Sensor data dashboard** | Python
+- Cleaned and plotted 50,000 temperature readings to find a recurring 4-hour drift.
+
+## EXPERIENCE
+
+**Laboratory assistant** | Example University, Lyon, France | September 2024 - June 2025
+- Prepared test samples and recorded measurements for tensile tests.
+- Wrote clear instructions for first-year students.
+</textarea>
+      <p class="hint">Supported markdown: <code>#</code> name, <code>##</code> section, lines starting with <code>**bold**</code> become entry headings, <code>-</code> bullets, inline <strong>**bold**</strong>. Text stays selectable and in reading order.</p>
+    </section>
+    <section class="pane">
+      <div class="tabs" role="tablist" aria-label="Preview type">
+        <button type="button" role="tab" id="tab-md" aria-selected="true" aria-controls="mdview">Markdown preview</button>
+        <button type="button" role="tab" id="tab-pdf" aria-selected="false" aria-controls="pages">PDF pages (A4)</button>
+      </div>
+      <div class="md" id="mdview" role="tabpanel" aria-labelledby="tab-md"></div>
+      <div class="pages" id="pages" role="tabpanel" aria-labelledby="tab-pdf" hidden></div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* Standalone build: provides the same save() call the claude.ai version uses, with a normal browser download. */
+window.claude = {
+  use: function (name) {
+    if (name !== 'downloads') return Promise.resolve(null);
+    return Promise.resolve({
+      save: function (req) {
+        return new Promise(function (resolve, reject) {
+          try {
+            var type = /\.pdf$/i.test(req.filename) ? 'application/pdf' : 'text/markdown;charset=utf-8';
+            var url = URL.createObjectURL(new Blob([req.data], { type: type }));
+            var a = document.createElement('a');
+            a.href = url; a.download = req.filename;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+            resolve({ status: 'saved' });
+          } catch (e) { reject({ code: 'unavailable', message: String(e) }); }
+        });
+      }
+    });
+  }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function () {
+  var K = 0.352778; // mm per pt
+  var PG = { w: 210, h: 297, ml: 16, mr: 16, mt: 13, mb: 13 };
+  var ST = {
+    name: { size: 19, lead: 22, before: 0 },
+    sec: { size: 10.5, lead: 13, before: 7 },
+    head: { size: 9.2, lead: 11.6, before: 4 },
+    body: { size: 9, lead: 11.4, before: 0 }
+  };
+  var BULLET_INDENT = 4.2;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var src = $('src'), fname = $('fname'), statusEl = $('status'), checksEl = $('checks'), pagesEl = $('pages');
+  var SAMPLE = src.value;
+  var nameEdited = false;
+  var current = null;
+  var measure = null;
+
+  function jsPDFCtor() { return window.jspdf && window.jspdf.jsPDF; }
+
+  function mw(s, bold, size) {
+    measure.setFont('helvetica', bold ? 'bold' : 'normal');
+    measure.setFontSize(size);
+    return measure.getTextWidth(s);
+  }
+
+  var MAP = {
+    '‘': "'", '’': "'", '‚': ',', '“': '"', '”': '"', '…': '...',
+    ' ': ' ', ' ': ' ', ' ': ' ', '₂': '2', '‑': '-', '−': '-',
+    '–': '-', '—': '-', '→': '->', '×': 'x'
+  };
+  var KEEP = { '€': 1, '™': 1 };
+
+  function prepare(md, info) {
+    var s = md.replace(/\r/g, '');
+    var before = s;
+    s = s.replace(/<\/?div[^>]*>/gi, '').replace(/<br\s*\/?>/gi, ' ').replace(/&nbsp;/g, ' ');
+    s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+    s = s.replace(/^[ \t]*~[ \t]*/gm, '');
+    if (s !== before) info.cleaned = true;
+    var out = '', bad = {};
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i], c = s.charCodeAt(i);
+      if (MAP[ch] !== undefined) { out += MAP[ch]; if (ch === '₂') info.sub = true; continue; }
+      if (c > 255 && !KEEP[ch]) {
+        if (c >= 0x200B && c <= 0x200F || c === 0xFEFF) continue;
+        bad[ch] = 1; out += '?'; continue;
+      }
+      out += ch;
+    }
+    info.bad = Object.keys(bad);
+    return out;
+  }
+
+  function runsOf(str, force) {
+    var parts = str.split('**'), bold = false, out = [];
+    for (var i = 0; i < parts.length; i++) {
+      if (i > 0) bold = !bold;
+      var t = parts[i].replace(/\*([^*\s][^*]*?)\*/g, '$1');
+      if (t) out.push({ t: t, b: bold || force });
+    }
+    return out;
+  }
+
+  function wordsOf(runs) {
+    var w = [], prevSpace = true;
+    runs.forEach(function (r) {
+      r.t.split(/(\s+)/).forEach(function (p) {
+        if (!p) return;
+        if (/^\s+$/.test(p)) { prevSpace = true; return; }
+        w.push({ s: p, b: r.b, glue: !prevSpace });
+        prevSpace = false;
+      });
+    });
+    return w;
+  }
+
+  function wrap(ws, size, maxW) {
+    var lines = [], cur = [], curW = 0, sp = mw(' ', false, size);
+    ws.forEach(function (w) {
+      var ww = mw(w.s, w.b, size);
+      var gap = cur.length && !w.glue ? sp : 0;
+      if (cur.length && curW + gap + ww > maxW) { lines.push(cur); cur = []; curW = 0; gap = 0; }
+      cur.push({ s: w.s, b: w.b, glue: cur.length ? w.glue : true });
+      curW += gap + ww;
+    });
+    if (cur.length) lines.push(cur);
+    return lines;
+  }
+
+  function segsOf(line) {
+    var out = [];
+    line.forEach(function (w, i) {
+      var sp = i > 0 && !w.glue ? ' ' : '';
+      var last = out[out.length - 1];
+      if (last && last.b === w.b) last.s += sp + w.s;
+      else { if (last) last.s += sp; out.push({ s: w.s, b: w.b }); }
+    });
+    return out;
+  }
+
+  function parse(text) {
+    var blocks = [];
+    text.split('\n').forEach(function (raw) {
+      var line = raw.trim();
+      if (!line) return;
+      var m;
+      if ((m = /^#{3,}\s+(.*)$/.exec(line))) blocks.push({ kind: 'head', text: m[1], bold: true });
+      else if ((m = /^##\s+(.*)$/.exec(line))) blocks.push({ kind: 'sec', text: m[1], bold: true });
+      else if ((m = /^#\s+(.*)$/.exec(line))) blocks.push({ kind: 'name', text: m[1], bold: true });
+      else if ((m = /^[-*•]\s+(.*)$/.exec(line))) blocks.push({ kind: 'body', text: m[1], bullet: true });
+      else if (/^\*\*/.test(line)) blocks.push({ kind: 'head', text: line, bold: true });
+      else blocks.push({ kind: 'body', text: line });
+    });
+    return blocks;
+  }
+
+  function layout(md) {
+    var info = {};
+    var text = prepare(md, info);
+    var blocks = parse(text);
+    var pages = [[]], pg = 0, cy = PG.mt, bottom = PG.h - PG.mb;
+    var fullW = PG.w - PG.ml - PG.mr;
+
+    function newPage() { pages.push([]); pg++; cy = PG.mt; }
+    function ensure(h) { if (cy + h > bottom && cy > PG.mt + 0.01) { newPage(); return true; } return false; }
+
+    blocks.forEach(function (b) {
+      var st = ST[b.kind];
+      var indent = b.bullet ? BULLET_INDENT : 0;
+      var lines = wrap(wordsOf(runsOf(b.text, !!b.bold)), st.size, fullW - indent);
+      if (!lines.length) return;
+      var lead = st.lead * K;
+      var before = cy === PG.mt ? 0 : st.before * K;
+      if (b.kind === 'sec' || b.kind === 'head') {
+        var keep = before + lead + (b.kind === 'sec' ? 2.4 : 0) + 2 * ST.body.lead * K;
+        if (cy + keep > bottom && cy > PG.mt + 0.01) { newPage(); before = 0; }
+      }
+      cy += before;
+      lines.forEach(function (line, li) {
+        if (cy + lead > bottom && cy > PG.mt + 0.01) newPage();
+        var base = cy + ((st.lead - st.size) / 2 + st.size * 0.8) * K;
+        var x = PG.ml + indent;
+        if (b.bullet && li === 0) pages[pg].push({ t: 'dot', x: PG.ml + 1.1, y: base - st.size * K * 0.3, r: 0.45 });
+        segsOf(line).forEach(function (sg) {
+          pages[pg].push({ t: 'text', x: x, y: base, s: sg.s, b: sg.b, size: st.size });
+          x += mw(sg.s, sg.b, st.size);
+        });
+        cy += lead;
+      });
+      if (b.kind === 'sec') {
+        pages[pg].push({ t: 'rule', x1: PG.ml, x2: PG.w - PG.mr, y: cy + 0.4 });
+        cy += 2.4;
+      }
+    });
+    return { pages: pages, info: info, text: text, blocks: blocks };
+  }
+
+  function buildDoc(pages, title) {
+    var J = jsPDFCtor();
+    var doc = new J({ unit: 'mm', format: 'a4', compress: true });
+    doc.setProperties({ title: title });
+    doc.setTextColor(0, 0, 0);
+    doc.setDrawColor(0, 0, 0);
+    doc.setFillColor(0, 0, 0);
+    pages.forEach(function (ops, i) {
+      if (i) doc.addPage();
+      ops.forEach(function (o) {
+        if (o.t === 'text') {
+          doc.setFont('helvetica', o.b ? 'bold' : 'normal');
+          doc.setFontSize(o.size);
+          doc.text(o.s, o.x, o.y);
+        } else if (o.t === 'dot') {
+          doc.circle(o.x, o.y, o.r, 'F');
+        } else if (o.t === 'rule') {
+          doc.setLineWidth(0.2);
+          doc.line(o.x1, o.y, o.x2, o.y);
+        }
+      });
+    });
+    return doc;
+  }
+
+  function el(tag, cls, css) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (css) e.style.cssText = css;
+    return e;
+  }
+
+  function renderPreview(pages) {
+    pagesEl.textContent = '';
+    pages.forEach(function (ops, i) {
+      var p = el('div', 'page');
+      ops.forEach(function (o) {
+        if (o.t === 'text') {
+          var t = el('span', 't' + (o.b ? ' b' : ''),
+            'left:' + (o.x / PG.w * 100) + '%;top:' + ((o.y - o.size * K * 0.85) / PG.h * 100) + '%;font-size:' + (o.size * K / PG.w * 100) + 'cqw');
+          t.textContent = o.s;
+          p.appendChild(t);
+        } else if (o.t === 'dot') {
+          var d = el('span', 'dot',
+            'left:' + ((o.x - o.r) / PG.w * 100) + '%;top:' + ((o.y - o.r) / PG.h * 100) + '%;width:' + (2 * o.r / PG.w * 100) + '%;height:' + (2 * o.r / PG.h * 100) + '%');
+          p.appendChild(d);
+        } else if (o.t === 'rule') {
+          var r = el('span', 'rule',
+            'left:' + (o.x1 / PG.w * 100) + '%;width:' + ((o.x2 - o.x1) / PG.w * 100) + '%;top:' + (o.y / PG.h * 100) + '%;height:' + (0.2 / PG.h * 100) + '%');
+          p.appendChild(r);
+        }
+      });
+      var n = el('span', 'num'); n.textContent = (i + 1) + ' / ' + pages.length; p.appendChild(n);
+      pagesEl.appendChild(p);
+    });
+  }
+
+  function appendInline(parent, text, force) {
+    runsOf(text, force).forEach(function (r) {
+      if (r.b && !force) { var s = document.createElement('strong'); s.textContent = r.t; parent.appendChild(s); }
+      else parent.appendChild(document.createTextNode(r.t));
+    });
+  }
+
+  function renderMd(blocks) {
+    var box = $('mdview'), ul = null;
+    box.textContent = '';
+    blocks.forEach(function (b) {
+      if (b.bullet) {
+        if (!ul) { ul = document.createElement('ul'); box.appendChild(ul); }
+        var li = document.createElement('li'); appendInline(li, b.text, false); ul.appendChild(li);
+        return;
+      }
+      ul = null;
+      var tag = b.kind === 'name' ? 'h1' : b.kind === 'sec' ? 'h2' : 'p';
+      var e = document.createElement(tag);
+      if (b.kind === 'head') e.className = 'entry';
+      appendInline(e, b.text, b.kind === 'head');
+      box.appendChild(e);
+    });
+  }
+
+  function showTab(which) {
+    var md = which === 'md';
+    $('mdview').hidden = !md;
+    $('pages').hidden = md;
+    $('tab-md').setAttribute('aria-selected', md ? 'true' : 'false');
+    $('tab-pdf').setAttribute('aria-selected', md ? 'false' : 'true');
+  }
+  $('tab-md').addEventListener('click', function () { showTab('md'); });
+  $('tab-pdf').addEventListener('click', function () { showTab('pdf'); });
+
+  function addCheck(text, ok) {
+    var li = document.createElement('li');
+    if (!ok) li.className = 'warn';
+    li.textContent = text;
+    checksEl.appendChild(li);
+  }
+
+  function renderChecks(res) {
+    var t = res.text, n = res.pages.length, info = res.info;
+    checksEl.textContent = '';
+    addCheck(n + (n === 1 ? ' page' : ' pages') + (n > 2 ? ', aim for 2 or fewer' : ''), n <= 2);
+    var email = /[\w.+-]+@[\w-]+\.[\w.-]+/.test(t);
+    addCheck(email ? 'Email found' : 'No email address found', email);
+    var phoneRe = /(\+?\d[\d .\-]{8,}\d)/.exec(t);
+    var placeholder = /(\b00 00 00 00\b|\b0{6,}\b)/.test(t);
+    if (!phoneRe) addCheck('No phone number found', false);
+    else if (placeholder) addCheck('Phone number looks like a placeholder', false);
+    else addCheck('Phone number found', true);
+    var secs = [
+      ['Profile', /^##\s*(profil|summary|resume|r[ée]sum[ée]|objectif|objective|about)/im],
+      ['Education', /^##\s*(formation|education|[ée]tudes)/im],
+      ['Experience', /^##\s*(exp[ée]rience|work|emploi)/im],
+      ['Skills', /^##\s*(comp[ée]tences|skills)/im]
+    ];
+    var missing = secs.filter(function (s) { return !s[1].test(t); }).map(function (s) { return s[0]; });
+    addCheck(missing.length ? 'Section titles not recognized: ' + missing.join(', ') : 'Standard section titles', !missing.length);
+    if (info.bad && info.bad.length) addCheck('Replaced unsupported characters with ?: ' + info.bad.join(' '), false);
+    if (info.cleaned) addCheck('Removed HTML tags, links or ~ markers', true);
+    if (info.sub) addCheck('Subscript 2 written as plain 2', true);
+    if (/€/.test(t)) addCheck('Contains the euro sign: check it in the saved PDF', true);
+  }
+
+  function slug(md) {
+    var m = /^#\s+(.+)$/m.exec(md);
+    if (!m) return 'CV.pdf';
+    var s = m[1].replace(/[*_`]/g, '').trim().replace(/\s+/g, '_').replace(/[^\wÀ-ÿ-]/g, '');
+    return (s || 'CV') + '_CV.pdf';
+  }
+
+  function recalc() {
+    if (!jsPDFCtor()) {
+      statusEl.textContent = 'The PDF library did not load. Reload the page.';
+      $('dl').disabled = true;
+      return;
+    }
+    if (!measure) { var J = jsPDFCtor(); measure = new J({ unit: 'mm', format: 'a4' }); }
+    var res = layout(src.value);
+    current = res;
+    renderPreview(res.pages);
+    renderMd(res.blocks);
+    renderChecks(res);
+    $('dl').disabled = !res.blocks.length;
+    if (!nameEdited) fname.value = slug(src.value);
+  }
+
+  var tm = null;
+  function schedule() {
+    clearTimeout(tm);
+    tm = setTimeout(function () {
+      recalc();
+      try { localStorage.setItem('cv2pdf:draft', src.value); } catch (e) {}
+    }, 250);
+  }
+
+  src.addEventListener('input', schedule);
+  fname.addEventListener('input', function () { nameEdited = true; });
+
+  $('open').addEventListener('click', function () { $('file').click(); });
+  function loadFile(f) {
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function () { src.value = String(r.result); nameEdited = false; recalc(); schedule(); statusEl.textContent = 'Loaded ' + f.name + '.'; };
+    r.readAsText(f);
+  }
+  $('file').addEventListener('change', function (e) { loadFile(e.target.files[0]); e.target.value = ''; });
+  src.addEventListener('dragover', function (e) { e.preventDefault(); });
+  src.addEventListener('drop', function (e) {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); loadFile(e.dataTransfer.files[0]); }
+  });
+  $('reset').addEventListener('click', function () {
+    src.value = SAMPLE; nameEdited = false; recalc(); schedule(); statusEl.textContent = 'Sample restored.';
+  });
+
+  var downloads = null;
+  var dlReady = (window.claude && window.claude.use)
+    ? window.claude.use('downloads').then(function (d) { downloads = d; }, function () { downloads = null; })
+    : Promise.resolve();
+
+  $('dl').addEventListener('click', function () {
+    if (!current) return;
+    var name = (fname.value || 'CV.pdf').trim();
+    if (!/\.pdf$/i.test(name)) name += '.pdf';
+    var title = name.replace(/\.pdf$/i, '').replace(/_/g, ' ');
+    dlReady.then(function () {
+      if (!downloads) {
+        statusEl.textContent = 'Saving is not available in this view. Open the artifact in claude.ai to download.';
+        return null;
+      }
+      var doc = buildDoc(current.pages, title);
+      return downloads.save({ filename: name, data: doc.output('arraybuffer') }).then(function () {
+        statusEl.textContent = 'Saved ' + name + '.';
+      });
+    }).catch(function (err) {
+      var code = err && err.code;
+      statusEl.textContent = code === 'declined' ? 'Download cancelled.'
+        : code === 'rate_limited' ? 'A save prompt is already open. Answer it, then try again.'
+        : 'Could not save the PDF' + (err && err.message ? ': ' + err.message : '.');
+    });
+  });
+
+  $('dlmd').addEventListener('click', function () {
+    var base = (fname.value || 'CV').trim().replace(/\.(pdf|md)$/i, '') || 'CV';
+    var name = base + '.md';
+    if (!src.value.trim()) { statusEl.textContent = 'The editor is empty.'; return; }
+    dlReady.then(function () {
+      if (!downloads) {
+        statusEl.textContent = 'Saving is not available in this view. Open the artifact in claude.ai to download.';
+        return null;
+      }
+      return downloads.save({ filename: name, data: src.value }).then(function () {
+        statusEl.textContent = 'Saved ' + name + '.';
+      });
+    }).catch(function (err) {
+      var code = err && err.code;
+      statusEl.textContent = code === 'declined' ? 'Download cancelled.'
+        : code === 'rate_limited' ? 'A save prompt is already open. Answer it, then try again.'
+        : 'Could not save the Markdown file' + (err && err.message ? ': ' + err.message : '.');
+    });
+  });
+
+  try {
+    var saved = localStorage.getItem('cv2pdf:draft');
+    if (saved && saved.trim()) src.value = saved;
+  } catch (e) {}
+  recalc();
+})();
+</script>
+</body>
+</html>
